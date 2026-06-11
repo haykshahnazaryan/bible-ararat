@@ -4,7 +4,7 @@ A single-file, offline-friendly web reader for the complete Armenian Bible in th
 **«Արարատ» (Ararat)** translation — all 65 books, 1,163 chapters, with verses,
 section headings, and footnote cross-references.
 
-🔗 **Live site:** https://USERNAME.github.io/armenian-bible-ararat/
+🔗 **Live site:** https://haykshahnazaryan.github.io/bible-ararat/
 
 ## Features
 
