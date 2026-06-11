@@ -1,0 +1,6 @@
+.DS_Store
+*.log
+*.output
+# Raw scraped chapter cache and source page (regenerable, not needed in the repo)
+src/chapters/
+src/gen_page.html
