@@ -1,9 +1,31 @@
 #!/usr/bin/env python3
 """Generate armenian-bible-stone.html from bible_data.json, reusing the
    parchment/stone reading design with a books -> nested chapters sidebar."""
-import json
+import json, re
 
 data = json.load(open("bible_data.json", encoding="utf-8"))
+
+# ---- text clean-up ---------------------------------------------------------
+# The scraped text uses "þ" where the Armenian apostrophe "՚" belongs
+# (կ՚կոչէ, չ՚կային), and "*" footnote markers that we don't show inline.
+FN_MARKER_RE = re.compile(r'\s*<sup class="fn"[^>]*>\*</sup>')
+FN_ITEM_STAR_RE = re.compile(r'(<span class="fn-ref">[^<]*</span>)\*')
+
+def clean(s):
+    s = s.replace("þ", "՚")
+    s = FN_MARKER_RE.sub("", s)            # inline footnote markers
+    s = FN_ITEM_STAR_RE.sub(r"\1", s)      # "*1.1 ..." in the footnote list
+    s = re.sub(r"\s*\*\s*", " ", s)        # any stray "*" left in the text
+    s = re.sub(r"(>)\s+", r"\1", s)        # no leading space after a tag
+    return s
+
+for t in data:
+    for b in t["books"]:
+        for c in b["chapters"]:
+            for f in ("sub", "body"):
+                c[f] = clean(c[f])
+            c["fn"] = ""   # the footnotes section ("Ծանօթագրութիւններ") is not shown
+
 payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
 
 HTML = r"""<!DOCTYPE html>
@@ -16,7 +38,7 @@ HTML = r"""<!DOCTYPE html>
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Noto+Serif+Armenian:wght@400;500;600;700&family=Spectral:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Noto+Sans+Armenian:wght@400;500&family=Noto+Serif+Armenian:wght@400;500;600;700&family=Spectral:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet" />
 
 <style>
   :root {
@@ -36,6 +58,7 @@ HTML = r"""<!DOCTYPE html>
     --font-display: "Cinzel", Georgia, serif;
     --font-body:    "Noto Serif Armenian", "Spectral", Georgia, serif;
     --font-numeral: "Noto Serif Armenian", "Cinzel", serif;
+    --font-tile:    "Noto Sans Armenian", "Arial", sans-serif;
 
     --sidebar-w: 340px;
     --radius: 4px;
@@ -61,9 +84,9 @@ HTML = r"""<!DOCTYPE html>
   /* The sidebar and mobile top bar always use a black, light-on-dark palette,
      so they stay legible whether the page theme is light or dark. */
   .sidebar, .topbar {
-    --bg:          #000000;
+    --bg:          #0e0e0e;
     --surface:     #FFFFFF;
-    --sidebar:     #000000;
+    --sidebar:     #0e0e0e;
     --ink:         #E9E1CF;
     --ink-soft:    #A99F8B;
     --lapis:       #6FAACE;
@@ -133,41 +156,44 @@ HTML = r"""<!DOCTYPE html>
   .search-input::placeholder { color: var(--ink-soft); }
   .search-input:focus { outline: none; border-color: var(--lapis); box-shadow: 0 0 0 3px var(--selection); }
 
-  /* NAV */
-  .chapter-nav { flex: 1 1 auto; overflow-y: auto; padding: 0.4rem 0.6rem 1rem; }
+  /* NAV — tile palette matched to the reference app:
+     tile #0e0e0e, hover #202020, pressed/current #505050, section strip #202020 */
+  .chapter-nav { flex: 1 1 auto; overflow-y: auto; padding: 0 0 1rem; background: #0e0e0e; }
   .testament-head {
-    font-family: var(--font-display); font-size: 0.66rem; letter-spacing: 0.26em;
-    text-transform: uppercase; color: var(--gold);
-    margin: 1rem 0.75rem 0.4rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--line);
+    font-family: var(--font-tile); font-size: 0.9rem; font-weight: 400;
+    letter-spacing: 0; text-transform: none; color: #e6e6e6;
+    margin: 0; padding: 0.3rem 0.55rem;
+    background: linear-gradient(#262626, #1c1c1c);
+    border-top: 1px solid #2e2e2e; border-bottom: 1px solid #050505;
   }
-  /* Book + chapter tile grids (hairline-separated cells, like the source app) */
+  /* Book + chapter tile grids: edge-to-edge cells split by near-black hairlines */
   .book-grid, .chap-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
-    margin: 0.25rem 0.4rem 0.85rem;
-    border-top: 1px solid var(--line-strong);
-    border-left: 1px solid var(--line-strong);
-    border-radius: var(--radius);
-    overflow: hidden;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1px;
+    margin: 0;
+    background: #050505;
+    border-bottom: 1px solid #050505;
   }
-  .chap-grid { grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); }
+  .chap-grid { grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); }
 
   .book-tile, .chap-btn {
     display: flex; align-items: center; justify-content: center;
-    min-height: 46px; padding: 0.4rem 0.25rem;
-    background: var(--sidebar);
-    border: 0;
-    border-right: 1px solid var(--line-strong);
-    border-bottom: 1px solid var(--line-strong);
-    color: var(--ink-soft); cursor: pointer;
-    font-family: var(--font-numeral); font-size: 0.84rem; line-height: 1.15;
+    min-height: 48px; padding: 0.4rem 0.2rem;
+    background: #0e0e0e;
+    border: 0; border-radius: 0;
+    color: #ffffff; cursor: pointer;
+    font-family: var(--font-tile); font-size: 0.95rem; font-weight: 400; line-height: 1.15;
     text-align: center; word-break: break-word;
-    transition: background-color 150ms var(--ease), color 150ms var(--ease);
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 120ms ease;
   }
-  .book-tile:hover, .chap-btn:hover { background: var(--selection); color: var(--ink); }
+  .book-tile:hover, .chap-btn:hover { background: #202020; color: #ffffff; }
+  .book-tile:active, .chap-btn:active { background: #505050; transition: none; }
   .book-tile[aria-current="true"], .chap-btn[aria-current="true"] {
-    background: var(--vermilion); color: #fff; font-weight: 600;
+    background: #505050; color: #ffffff; font-weight: 400;
   }
+  .book-tile:focus-visible, .chap-btn:focus-visible { outline: 1px solid #8a8a8a; outline-offset: -1px; border-radius: 0; }
   .book-tile.is-hidden { display: none; }
 
   /* Chapters drill-down view */
@@ -182,6 +208,35 @@ HTML = r"""<!DOCTYPE html>
   }
   .back-btn:hover { border-color: var(--lapis); }
   .chap-view-title { font-family: var(--font-numeral); font-weight: 700; font-size: 1.02rem; color: var(--ink); margin: 0.55rem 0.5rem 0.3rem; }
+
+  /* Sidebar chrome in the same charcoal family as the tiles */
+  .sidebar { border-right: 1px solid #050505; }
+  .sidebar-head, .sidebar-foot { background: linear-gradient(#212121, #161616); border-color: #050505; }
+  .search-wrap { background: #161616; padding-bottom: 0.75rem; border-bottom: 1px solid #050505; }
+  .chap-view-head { margin: 0; padding: 0.5rem 0.55rem; }
+  .chap-view-title {
+    font-family: var(--font-tile); font-weight: 400; font-size: 0.9rem; color: #e6e6e6;
+    margin: 0; padding: 0.3rem 0.55rem;
+    background: linear-gradient(#262626, #1c1c1c);
+    border-top: 1px solid #2e2e2e; border-bottom: 1px solid #050505;
+  }
+  .back-btn { background: #202020; border: 1px solid #050505; color: #ffffff; border-radius: 0; font-family: var(--font-tile); }
+  .back-btn:hover { background: #2c2c2c; border-color: #050505; }
+  .back-btn:active { background: #505050; }
+
+  /* Drill-down animation: chapters slide in from the right, books come back
+     from the left; chapter tiles ripple in one after another. */
+  .chapter-nav { overflow-x: hidden; }
+  .slide-in-right { animation: slideInRight 300ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+  .slide-in-left  { animation: slideInLeft  300ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+  @keyframes slideInRight { from { opacity: 0; transform: translateX(40%); } to { opacity: 1; transform: none; } }
+  @keyframes slideInLeft  { from { opacity: 0; transform: translateX(-40%); } to { opacity: 1; transform: none; } }
+  .slide-in-right .chap-btn {
+    animation: tileIn 260ms ease-out both;
+    animation-delay: calc(80ms + min(var(--i, 0), 30) * 12ms);
+  }
+  @keyframes tileIn { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: none; } }
+  .book-tile.is-pressed { background: #505050; }
 
   .search-empty { padding: 0.75rem 1.1rem; color: var(--ink-soft); font-style: italic; font-size: 0.9rem; }
   .search-empty[hidden] { display: none; }
@@ -204,12 +259,15 @@ HTML = r"""<!DOCTYPE html>
   .topbar-title { font-family: var(--font-numeral); font-size: 0.98rem; font-weight: 700; color: var(--ink); }
   .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.45); opacity: 0; visibility: hidden; z-index: 35; transition: opacity var(--speed) var(--ease), visibility var(--speed) var(--ease); }
   .backdrop.is-open { opacity: 1; visibility: visible; }
+  body.scroll-locked { position: fixed; left: 0; right: 0; width: 100%; }  /* scrolling inside the sidebar never chains through to the page */
+  .sidebar, .chapter-nav { overscroll-behavior: contain; }
+  .backdrop { touch-action: none; }
 
   /* CHAPTER ARTICLE */
   .chapter-eyebrow { font-family: var(--font-display); font-size: 0.7rem; letter-spacing: 0.26em; text-transform: uppercase; color: var(--gold); margin: 0 0 0.75rem; }
   .chapter-title { font-family: var(--font-numeral); font-weight: 700; font-size: clamp(2rem, 5vw, 3rem); line-height: 1.12; margin: 0 0 0.4rem; color: var(--ink); }
-  .chapter-subtitle { font-style: italic; font-size: 1.12rem; color: var(--ink-soft); margin: 0 0 1.4rem; }
-  .divider { display: block; width: 220px; height: 26px; margin: 0 0 2rem; color: var(--gold); }
+  .chapter-subtitle { font-style: italic; font-size: 1.12rem; color: var(--ink-soft); margin: 0; }
+  .chapter-article header { margin-bottom: 2rem; }
 
   .chapter-body p.v { margin: 0 0 1.05rem; text-align: justify; }
   .chapter-body h3 { font-family: var(--font-numeral); font-weight: 600; font-size: 1.15rem; margin: 1.9rem 0 0.8rem; color: var(--lapis); }
@@ -243,14 +301,13 @@ HTML = r"""<!DOCTYPE html>
 
   /* --surface is now #fff in every theme, so controls drawn on it use dark
      text/icons to stay legible. */
-  .search-input, .back-btn, .theme-toggle, .menu-btn,
+  .search-input, .theme-toggle, .menu-btn,
   .nav-prev, .nav-next { color: #1c1a17; }
   .search-input::placeholder { color: #6b6256; }
   .search-field svg, .theme-toggle svg, .menu-btn svg { color: #1c1a17; }
 
   /* Light theme: the former-gold accents in the white reading pane use dark
      ink so they stay visible (in dark theme they remain #fff on black). */
-  [data-theme="light"] .divider,
   [data-theme="light"] .footnotes h4,
   [data-theme="light"] .fn { color: var(--ink); }
   [data-theme="light"] .chapter-eyebrow { color: #000000; }
@@ -329,6 +386,7 @@ const els = {
   booksView: document.getElementById("booksView"),
   chaptersView: document.getElementById("chaptersView"),
   chapGrid: document.getElementById("chapGrid"),
+  chapterNavEl: document.querySelector(".chapter-nav"),
   chapViewTitle: document.getElementById("chapViewTitle"),
   backBtn: document.getElementById("backBtn"),
   container: document.getElementById("chapterContainer"),
@@ -342,14 +400,6 @@ const els = {
   backdrop: document.getElementById("backdrop"),
   html: document.documentElement
 };
-
-const DIVIDER_SVG = `
-  <svg class="divider" viewBox="0 0 220 26" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true">
-    <line x1="0" y1="13" x2="86" y2="13"/><line x1="134" y1="13" x2="220" y2="13"/>
-    <path d="M110 3 L120 13 L110 23 L100 13 Z"/><path d="M110 7 L110 19 M104 13 L116 13"/>
-    <circle cx="92" cy="13" r="2.2" fill="currentColor" stroke="none"/>
-    <circle cx="128" cy="13" r="2.2" fill="currentColor" stroke="none"/>
-  </svg>`;
 
 /* ---- compact book abbreviations for the tile grid ---- */
 const ABBR = {
@@ -399,23 +449,33 @@ function highlightActiveBook() {
     t.setAttribute("aria-current", t.dataset.book === String(activeBid) ? "true" : "false"));
 }
 
-function showBooks() {
+/* restart a CSS entrance animation on an element */
+function playAnim(el, cls) {
+  el.classList.remove("slide-in-right", "slide-in-left");
+  void el.offsetWidth;
+  el.classList.add(cls);   // stays until the next playAnim, so the tile ripple can finish
+}
+
+function showBooks({ animate = true } = {}) {
+  const wasChapters = view === "chapters";
   view = "books";
   els.chaptersView.hidden = true;
   els.booksView.hidden = false;
   highlightActiveBook();
+  if (animate && wasChapters) playAnim(els.booksView, "slide-in-left");
 }
 
-function showChapters(bid, { highlight = true } = {}) {
+function showChapters(bid, { highlight = true, animate = true } = {}) {
   const b = bookById(bid);
   if (!b) return;
   view = "chapters";
   els.chapViewTitle.textContent = b.name;
-  els.chapGrid.innerHTML = b.chapters.map(c =>
-    `<button class="chap-btn" type="button" data-key="b${b.id}-${c.n}" title="Գլուխ ${c.n}">${c.n}</button>`).join("");
+  els.chapGrid.innerHTML = b.chapters.map((c, i) =>
+    `<button class="chap-btn" type="button" style="--i:${i}" data-key="b${b.id}-${c.n}" title="Գլուխ ${c.n}">${c.n}</button>`).join("");
   els.booksView.hidden = true;
   els.chaptersView.hidden = false;
   els.searchEmpty.hidden = true;
+  if (animate) { els.chapterNavEl.scrollTop = 0; playAnim(els.chaptersView, "slide-in-right"); }
   if (highlight) highlightActiveChapter();
 }
 
@@ -435,7 +495,6 @@ function renderChapter(c) {
         <p class="chapter-eyebrow">${c.tname} · ${c.bname}</p>
         <h2 class="chapter-title">ԳԼՈՒԽ ${c.n}</h2>
         ${c.sub ? `<p class="chapter-subtitle">${c.sub}</p>` : ""}
-        ${DIVIDER_SVG}
       </header>
       <div class="chapter-body">${c.body}</div>
       ${c.fn || ""}
@@ -456,20 +515,24 @@ function openChapter(key, { updateHash = true, scroll = true } = {}) {
   if (view === "chapters") {
     const first = els.chapGrid.firstElementChild;
     const gridBid = first ? first.dataset.key.split("-")[0] : null;  // "b<id>"
-    if (gridBid !== "b" + c.bid) showChapters(c.bid, { highlight: false });
+    if (gridBid !== "b" + c.bid) showChapters(c.bid, { highlight: false, animate: false });
     highlightActiveChapter();
   }
   highlightActiveBook();
 
   if (updateHash) history.replaceState(null, "", "#" + c.key);
+  closeSidebar();   // unlock the page first, otherwise the scroll below is lost
   if (scroll) window.scrollTo({ top: 0, behavior: "smooth" });
-  closeSidebar();
 }
 
 /* ---- events ---- */
 els.booksView.addEventListener("click", e => {
   const tile = e.target.closest(".book-tile");
-  if (tile) showChapters(tile.dataset.book);
+  if (!tile) return;
+  // brief "pressed" flash on the tile, then slide to its chapters
+  tile.classList.add("is-pressed");
+  const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  setTimeout(() => { tile.classList.remove("is-pressed"); showChapters(tile.dataset.book); }, reduce ? 0 : 110);
 });
 els.chapGrid.addEventListener("click", e => {
   const chap = e.target.closest(".chap-btn");
@@ -524,8 +587,29 @@ els.themeToggle.addEventListener("click", () =>
   setTheme(els.html.getAttribute("data-theme") === "dark" ? "light" : "dark"));
 
 /* ---- mobile drawer ---- */
-function openSidebar() { els.sidebar.classList.add("is-open"); els.backdrop.hidden = false; requestAnimationFrame(() => els.backdrop.classList.add("is-open")); els.menuBtn.setAttribute("aria-expanded", "true"); }
-function closeSidebar() { els.sidebar.classList.remove("is-open"); els.backdrop.classList.remove("is-open"); els.menuBtn.setAttribute("aria-expanded", "false"); setTimeout(() => { els.backdrop.hidden = true; }, 320); }
+/* While the drawer is open the page behind it must not scroll (only the
+   sidebar does). position:fixed on <body> is the only lock iOS Safari honours,
+   so we pin the body at the current offset and restore it on close. */
+let lockedY = null;
+function lockPageScroll() {
+  if (lockedY !== null) return;
+  lockedY = window.scrollY;
+  document.body.style.top = `-${lockedY}px`;  document.body.classList.add("scroll-locked");
+}
+function unlockPageScroll() {
+  if (lockedY === null) return;
+  document.body.classList.remove("scroll-locked");
+  document.body.style.top = "";  const html = document.documentElement, prev = html.style.scrollBehavior;
+  html.style.scrollBehavior = "auto";          // jump back instantly, no smooth scroll
+  window.scrollTo(0, lockedY);
+  html.style.scrollBehavior = prev;
+  lockedY = null;
+}
+
+function openSidebar() { els.sidebar.classList.add("is-open"); lockPageScroll(); els.backdrop.hidden = false; requestAnimationFrame(() => els.backdrop.classList.add("is-open")); els.menuBtn.setAttribute("aria-expanded", "true"); }
+function closeSidebar() { els.sidebar.classList.remove("is-open"); unlockPageScroll(); els.backdrop.classList.remove("is-open"); els.menuBtn.setAttribute("aria-expanded", "false"); setTimeout(() => { els.backdrop.hidden = true; }, 320); }
+// leaving phone width with the drawer open would leave the page locked
+window.matchMedia("(max-width: 860px)").addEventListener("change", e => { if (!e.matches) closeSidebar(); });
 els.menuBtn.addEventListener("click", () => els.sidebar.classList.contains("is-open") ? closeSidebar() : openSidebar());
 els.backdrop.addEventListener("click", closeSidebar);
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeSidebar(); });

@@ -1,8 +1,8 @@
 # Աստուածաշունչ Մատեան — «Արարատ» թարգմանութիւն
 
 A single-file, offline-friendly web reader for the complete Armenian Bible in the
-**«Արարատ» (Ararat)** translation — all 65 books, 1,163 chapters, with verses,
-section headings, and footnote cross-references.
+**«Արարատ» (Ararat)** translation — all 65 books, 1,163 chapters, with verses
+and section headings.
 
 🔗 **Live site:** https://haykshahnazaryan.github.io/bible-ararat/
 
@@ -11,8 +11,8 @@ section headings, and footnote cross-references.
 - **Full text** — both testaments (Հին / Նոր Կտակարան), every book and chapter.
 - **Book grid sidebar** — abbreviated book tiles in two testament sections, with a
   drill-down to a chapter-number grid (like the source app).
-- **Reader** — chapter heading, verses with numbered markers, footnote tooltips, and
-  a footnotes section; previous/next chapter navigation across book boundaries.
+- **Reader** — chapter heading and verses with numbered markers; previous/next
+  chapter navigation across book boundaries.
 - **Search** — filter books by name or abbreviation.
 - **Light / dark themes** — the choice is remembered between visits.
 - **Self-contained** — everything (text + styles + script) lives in a single
